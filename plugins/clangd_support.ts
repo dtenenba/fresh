@@ -247,7 +247,7 @@ globalThis.clangdProjectSetup = async function (): Promise<void> {
 
 editor.registerCommand(
   "Clangd: Project Setup",
-  "Analyze clangd readiness (compile_commands.json, .clangd)",
+  "Analyze C/C++ clangd readiness (compile_commands.json, .clangd)",
   "clangdProjectSetup",
   "global"
 );
