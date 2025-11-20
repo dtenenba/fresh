@@ -874,6 +874,16 @@ fn hook_args_to_json(args: &HookArgs) -> Result<String> {
                 "input": input,
             })
         }
+        HookArgs::KeyboardShortcuts { bindings } => {
+            let entries: Vec<serde_json::Value> = bindings
+                .iter()
+                .map(|(key, action)| serde_json::json!({ "key": key, "action": action }))
+                .collect();
+            serde_json::json!({ "bindings": entries })
+        }
+        HookArgs::ManualPage => {
+            serde_json::json!({})
+        }
         HookArgs::LspReferences { symbol, locations } => {
             let locs: Vec<serde_json::Value> = locations
                 .iter()

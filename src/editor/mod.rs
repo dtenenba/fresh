@@ -30,7 +30,7 @@ use crate::prompt::{Prompt, PromptType};
 use crate::split::{SplitManager, SplitViewState};
 use crate::state::EditorState;
 use crate::ui::{
-    FileExplorerRenderer, HelpRenderer, SplitRenderer, StatusBarRenderer, SuggestionsRenderer,
+    FileExplorerRenderer, SplitRenderer, StatusBarRenderer, SuggestionsRenderer,
 };
 use crossterm::event::{KeyCode, KeyModifiers};
 use lsp_types::{Position, Range as LspRange, TextDocumentContentChangeEvent};
@@ -100,9 +100,6 @@ pub struct Editor {
 
     /// Plugin-provided status message (displayed alongside the core status)
     plugin_status_message: Option<String>,
-
-    /// Help renderer
-    help_renderer: HelpRenderer,
 
     /// Active prompt (minibuffer)
     prompt: Option<Prompt>,
@@ -452,7 +449,6 @@ impl Editor {
             should_quit: false,
             status_message: None,
             plugin_status_message: None,
-            help_renderer: HelpRenderer::new(),
             prompt: None,
             terminal_width: width,
             terminal_height: height,

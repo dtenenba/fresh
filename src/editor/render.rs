@@ -23,13 +23,6 @@ impl Editor {
             }
         }
 
-        // If help is visible, render help page instead
-        if self.help_renderer.is_visible() {
-            self.help_renderer
-                .render(frame, size, &self.keybindings, &self.theme);
-            return;
-        }
-
         // Refresh search highlights for the current viewport if we have an active search
         // This ensures highlights update when scrolling to show matches in the new viewport
         if let Some(ref search_state) = self.search_state {
@@ -581,23 +574,6 @@ impl Editor {
         let event = Event::PopupPageUp;
         self.active_event_log_mut().append(event.clone());
         self.apply_event_to_active_buffer(&event);
-    }
-
-    // === Help Page Management (Delegates to HelpRenderer) ===
-
-    /// Toggle help page visibility
-    pub fn toggle_help(&mut self) {
-        self.help_renderer.toggle();
-    }
-
-    /// Check if help page is visible
-    pub fn is_help_visible(&self) -> bool {
-        self.help_renderer.is_visible()
-    }
-
-    /// Scroll the help page
-    pub fn scroll_help(&mut self, delta: isize) {
-        self.help_renderer.scroll(delta, &self.keybindings);
     }
 
     // === LSP Diagnostics Display ===

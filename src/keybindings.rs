@@ -65,8 +65,6 @@ pub enum KeyContext {
     Global,
     /// Normal editing mode
     Normal,
-    /// Help screen is visible
-    Help,
     /// Prompt/minibuffer is active
     Prompt,
     /// Popup window is visible
@@ -87,7 +85,6 @@ impl KeyContext {
     pub fn from_when_clause(when: &str) -> Option<Self> {
         match when.trim() {
             "global" => Some(KeyContext::Global),
-            "help" => Some(KeyContext::Help),
             "prompt" => Some(KeyContext::Prompt),
             "popup" => Some(KeyContext::Popup),
             "fileExplorer" | "file_explorer" => Some(KeyContext::FileExplorer),
@@ -102,7 +99,6 @@ impl KeyContext {
         match self {
             KeyContext::Global => "global",
             KeyContext::Normal => "normal",
-            KeyContext::Help => "help",
             KeyContext::Prompt => "prompt",
             KeyContext::Popup => "popup",
             KeyContext::FileExplorer => "fileExplorer",
@@ -228,6 +224,7 @@ pub enum Action {
     ScrollUp,
     ScrollDown,
     ShowHelp,
+    ShowKeyboardShortcuts,
     CommandPalette,
     ToggleLineWrap,
 
@@ -251,13 +248,6 @@ pub enum Action {
     PrevSplit,
     IncreaseSplitSize,
     DecreaseSplitSize,
-
-    // Help mode actions
-    HelpToggle,
-    HelpScrollUp,
-    HelpScrollDown,
-    HelpPageUp,
-    HelpPageDown,
 
     // Prompt mode actions
     PromptConfirm,
@@ -498,6 +488,7 @@ impl Action {
             "scroll_up" => Some(Action::ScrollUp),
             "scroll_down" => Some(Action::ScrollDown),
             "show_help" => Some(Action::ShowHelp),
+            "keyboard_shortcuts" => Some(Action::ShowKeyboardShortcuts),
             "command_palette" => Some(Action::CommandPalette),
             "toggle_line_wrap" => Some(Action::ToggleLineWrap),
 
@@ -514,12 +505,6 @@ impl Action {
             "prev_split" => Some(Action::PrevSplit),
             "increase_split_size" => Some(Action::IncreaseSplitSize),
             "decrease_split_size" => Some(Action::DecreaseSplitSize),
-
-            "help_toggle" => Some(Action::HelpToggle),
-            "help_scroll_up" => Some(Action::HelpScrollUp),
-            "help_scroll_down" => Some(Action::HelpScrollDown),
-            "help_page_up" => Some(Action::HelpPageUp),
-            "help_page_down" => Some(Action::HelpPageDown),
 
             "prompt_confirm" => Some(Action::PromptConfirm),
             "prompt_cancel" => Some(Action::PromptCancel),
@@ -655,7 +640,7 @@ impl KeybindingResolver {
                 | Action::Save
                 | Action::SaveAs
                 | Action::ShowHelp
-                | Action::HelpToggle
+                | Action::ShowKeyboardShortcuts
                 | Action::PromptCancel  // Esc should always cancel
                 | Action::PopupCancel // Esc should always cancel
         )
@@ -1106,6 +1091,13 @@ impl KeybindingResolver {
         bindings.insert((KeyCode::Char('z'), KeyModifiers::CONTROL), Action::Undo);
         bindings.insert((KeyCode::Char('y'), KeyModifiers::CONTROL), Action::Redo);
 
+        // Help/manual
+        bindings.insert((KeyCode::F(1), KeyModifiers::empty()), Action::ShowHelp);
+        bindings.insert(
+            (KeyCode::F(1), KeyModifiers::SHIFT),
+            Action::ShowKeyboardShortcuts,
+        );
+
         // Clipboard
         bindings.insert((KeyCode::Char('c'), KeyModifiers::CONTROL), Action::Copy);
         bindings.insert((KeyCode::Char('x'), KeyModifiers::CONTROL), Action::Cut);
@@ -1256,25 +1248,6 @@ impl KeybindingResolver {
         bindings.insert((KeyCode::F(12), KeyModifiers::SHIFT), Action::LspReferences);
 
         all_bindings.insert(KeyContext::Normal, bindings);
-
-        // Help context bindings
-        let mut help_bindings = HashMap::new();
-        help_bindings.insert((KeyCode::Esc, KeyModifiers::empty()), Action::HelpToggle);
-        help_bindings.insert(
-            (KeyCode::Char('h'), KeyModifiers::CONTROL),
-            Action::HelpToggle,
-        );
-        help_bindings.insert((KeyCode::Up, KeyModifiers::empty()), Action::HelpScrollUp);
-        help_bindings.insert(
-            (KeyCode::Down, KeyModifiers::empty()),
-            Action::HelpScrollDown,
-        );
-        help_bindings.insert((KeyCode::PageUp, KeyModifiers::empty()), Action::HelpPageUp);
-        help_bindings.insert(
-            (KeyCode::PageDown, KeyModifiers::empty()),
-            Action::HelpPageDown,
-        );
-        all_bindings.insert(KeyContext::Help, help_bindings);
 
         // Prompt context bindings
         let mut prompt_bindings = HashMap::new();
@@ -1493,7 +1466,6 @@ impl KeybindingResolver {
         // Collect all bindings from all contexts
         for context in &[
             KeyContext::Normal,
-            KeyContext::Help,
             KeyContext::Prompt,
             KeyContext::Popup,
             KeyContext::FileExplorer,
@@ -1627,7 +1599,8 @@ impl KeybindingResolver {
             Action::Redo => "Redo".to_string(),
             Action::ScrollUp => "Scroll up".to_string(),
             Action::ScrollDown => "Scroll down".to_string(),
-            Action::ShowHelp => "Show help".to_string(),
+            Action::ShowHelp => "Show manual".to_string(),
+            Action::ShowKeyboardShortcuts => "Show keyboard shortcuts".to_string(),
             Action::CommandPalette => "Command palette".to_string(),
             Action::ToggleLineWrap => "Toggle line wrap".to_string(),
             Action::NextBuffer => "Next buffer".to_string(),
@@ -1641,11 +1614,6 @@ impl KeybindingResolver {
             Action::PrevSplit => "Previous split".to_string(),
             Action::IncreaseSplitSize => "Increase split size".to_string(),
             Action::DecreaseSplitSize => "Decrease split size".to_string(),
-            Action::HelpToggle => "Toggle help".to_string(),
-            Action::HelpScrollUp => "Scroll help up".to_string(),
-            Action::HelpScrollDown => "Scroll help down".to_string(),
-            Action::HelpPageUp => "Help page up".to_string(),
-            Action::HelpPageDown => "Help page down".to_string(),
             Action::PromptConfirm => "Confirm prompt".to_string(),
             Action::PromptCancel => "Cancel prompt".to_string(),
             Action::PromptBackspace => "Prompt backspace".to_string(),
@@ -1862,8 +1830,8 @@ mod tests {
 
         // Test new context-specific actions
         assert_eq!(
-            Action::from_str("help_toggle", &args),
-            Some(Action::HelpToggle)
+            Action::from_str("keyboard_shortcuts", &args),
+            Some(Action::ShowKeyboardShortcuts)
         );
         assert_eq!(
             Action::from_str("prompt_confirm", &args),
@@ -1881,7 +1849,6 @@ mod tests {
             KeyContext::from_when_clause("normal"),
             Some(KeyContext::Normal)
         );
-        assert_eq!(KeyContext::from_when_clause("help"), Some(KeyContext::Help));
         assert_eq!(
             KeyContext::from_when_clause("prompt"),
             Some(KeyContext::Prompt)
@@ -1890,10 +1857,8 @@ mod tests {
             KeyContext::from_when_clause("popup"),
             Some(KeyContext::Popup)
         );
-        assert_eq!(
-            KeyContext::from_when_clause("  help  "),
-            Some(KeyContext::Help)
-        ); // Test trimming
+        assert_eq!(KeyContext::from_when_clause("help"), None);
+        assert_eq!(KeyContext::from_when_clause("  help  "), None); // Test trimming
         assert_eq!(KeyContext::from_when_clause("unknown"), None);
         assert_eq!(KeyContext::from_when_clause(""), None);
     }
@@ -1901,7 +1866,6 @@ mod tests {
     #[test]
     fn test_key_context_to_when_clause() {
         assert_eq!(KeyContext::Normal.to_when_clause(), "normal");
-        assert_eq!(KeyContext::Help.to_when_clause(), "help");
         assert_eq!(KeyContext::Prompt.to_when_clause(), "prompt");
         assert_eq!(KeyContext::Popup.to_when_clause(), "popup");
     }
@@ -1910,17 +1874,6 @@ mod tests {
     fn test_context_specific_bindings() {
         let config = Config::default();
         let resolver = KeybindingResolver::new(&config);
-
-        // Test help context bindings
-        let esc_event = KeyEvent::new(KeyCode::Esc, KeyModifiers::empty());
-        assert_eq!(
-            resolver.resolve(&esc_event, KeyContext::Help),
-            Action::HelpToggle
-        );
-        assert_eq!(
-            resolver.resolve(&esc_event, KeyContext::Normal),
-            Action::RemoveSecondaryCursors
-        );
 
         // Test prompt context bindings
         let enter_event = KeyEvent::new(KeyCode::Enter, KeyModifiers::empty());
@@ -1957,10 +1910,6 @@ mod tests {
             Action::Save
         );
         assert_eq!(
-            resolver.resolve(&save_event, KeyContext::Help),
-            Action::Save
-        );
-        assert_eq!(
             resolver.resolve(&save_event, KeyContext::Popup),
             Action::Save
         );
@@ -1976,16 +1925,16 @@ mod tests {
         config.keybindings.push(Keybinding {
             key: "esc".to_string(),
             modifiers: vec![],
-            action: "quit".to_string(), // Override Esc in help context to quit
+            action: "quit".to_string(), // Override Esc in popup context to quit
             args: HashMap::new(),
-            when: Some("help".to_string()),
+            when: Some("popup".to_string()),
         });
 
         let resolver = KeybindingResolver::new(&config);
         let esc_event = KeyEvent::new(KeyCode::Esc, KeyModifiers::empty());
 
-        // In help context, custom binding should override default HelpToggle
-        assert_eq!(resolver.resolve(&esc_event, KeyContext::Help), Action::Quit);
+        // In popup context, custom binding should override default PopupCancel
+        assert_eq!(resolver.resolve(&esc_event, KeyContext::Popup), Action::Quit);
 
         // In normal context, should still be RemoveSecondaryCursors
         assert_eq!(
@@ -2011,11 +1960,7 @@ mod tests {
             Action::InsertChar('a')
         );
 
-        // But not in Help or Popup contexts (returns None)
-        assert_eq!(
-            resolver.resolve(&char_event, KeyContext::Help),
-            Action::None
-        );
+        // But not in Popup contexts (returns None)
         assert_eq!(
             resolver.resolve(&char_event, KeyContext::Popup),
             Action::None
@@ -2072,15 +2017,17 @@ mod tests {
 
         // Verify that default bindings exist for all contexts
         assert!(resolver.default_bindings.contains_key(&KeyContext::Normal));
-        assert!(resolver.default_bindings.contains_key(&KeyContext::Help));
         assert!(resolver.default_bindings.contains_key(&KeyContext::Prompt));
         assert!(resolver.default_bindings.contains_key(&KeyContext::Popup));
+        assert!(resolver.default_bindings.contains_key(&KeyContext::FileExplorer));
+        assert!(resolver.default_bindings.contains_key(&KeyContext::Menu));
 
         // Verify each context has some bindings
         assert!(!resolver.default_bindings[&KeyContext::Normal].is_empty());
-        assert!(!resolver.default_bindings[&KeyContext::Help].is_empty());
         assert!(!resolver.default_bindings[&KeyContext::Prompt].is_empty());
         assert!(!resolver.default_bindings[&KeyContext::Popup].is_empty());
+        assert!(!resolver.default_bindings[&KeyContext::FileExplorer].is_empty());
+        assert!(!resolver.default_bindings[&KeyContext::Menu].is_empty());
     }
 
     #[test]
@@ -2091,7 +2038,7 @@ mod tests {
 
         let test_cases = vec![
             (KeyCode::Left, KeyModifiers::empty(), KeyContext::Normal),
-            (KeyCode::Esc, KeyModifiers::empty(), KeyContext::Help),
+            (KeyCode::Esc, KeyModifiers::empty(), KeyContext::FileExplorer),
             (KeyCode::Enter, KeyModifiers::empty(), KeyContext::Prompt),
             (KeyCode::Down, KeyModifiers::empty(), KeyContext::Popup),
         ];

@@ -988,12 +988,20 @@ impl Config {
             // Help menu
             Menu {
                 label: "Help".to_string(),
-                items: vec![MenuItem::Action {
-                    label: "Show Help".to_string(),
-                    action: "show_help".to_string(),
-                    args: HashMap::new(),
-                    when: None,
-                }],
+                items: vec![
+                    MenuItem::Action {
+                        label: "Show Fresh Manual".to_string(),
+                        action: "show_help".to_string(),
+                        args: HashMap::new(),
+                        when: None,
+                    },
+                    MenuItem::Action {
+                        label: "Keyboard Shortcuts".to_string(),
+                        action: "keyboard_shortcuts".to_string(),
+                        args: HashMap::new(),
+                        when: None,
+                    },
+                ],
             },
         ]
     }

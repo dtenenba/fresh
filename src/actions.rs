@@ -1363,6 +1363,7 @@ pub fn action_to_events(
         | Action::GoToMatchingBracket
         | Action::JumpToNextError
         | Action::JumpToPreviousError
+        | Action::ShowKeyboardShortcuts
         | Action::SmartHome
         | Action::IndentSelection
         | Action::DedentSelection
@@ -1384,11 +1385,6 @@ pub fn action_to_events(
         | Action::PlayLastMacro
         | Action::PromptSetBookmark
         | Action::PromptJumpToBookmark
-        | Action::HelpToggle
-        | Action::HelpScrollUp
-        | Action::HelpScrollDown
-        | Action::HelpPageUp
-        | Action::HelpPageDown
         | Action::PromptConfirm
         | Action::PromptCancel
         | Action::PromptBackspace

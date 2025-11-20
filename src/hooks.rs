@@ -118,6 +118,14 @@ pub enum HookArgs {
     /// Prompt was cancelled (user pressed Escape/Ctrl+G)
     PromptCancelled { prompt_type: String, input: String },
 
+    /// Request keyboard shortcuts data (key, action) for the help buffer
+    KeyboardShortcuts {
+        bindings: Vec<(String, String)>,
+    },
+
+    /// Request the manual/help page buffer
+    ManualPage,
+
     /// LSP find references response received
     LspReferences {
         /// The symbol name being queried

@@ -338,12 +338,6 @@ pub fn get_all_commands() -> Vec<Command> {
         },
         // View
         Command {
-            name: "Show Help".to_string(),
-            description: "Display the help page with all keybindings".to_string(),
-            action: Action::ShowHelp,
-            contexts: vec![],
-        },
-        Command {
             name: "Toggle Line Wrap".to_string(),
             description: "Enable or disable line wrapping in the editor".to_string(),
             action: Action::ToggleLineWrap,

@@ -1,14 +1,12 @@
 use super::*;
-
+use crate::hooks::HookArgs;
 impl Editor {
     /// Determine the current keybinding context based on UI state
     pub(super) fn get_key_context(&self) -> crate::keybindings::KeyContext {
         use crate::keybindings::KeyContext;
 
-        // Priority order: Help > Menu > Prompt > Popup > Rename > Current context (FileExplorer or Normal)
-        if self.help_renderer.is_visible() {
-            KeyContext::Help
-        } else if self.menu_state.active_menu.is_some() {
+        // Priority order: Menu > Prompt > Popup > Rename > Current context (FileExplorer or Normal)
+        if self.menu_state.active_menu.is_some() {
             KeyContext::Menu
         } else if self.is_prompting() {
             KeyContext::Prompt
@@ -60,7 +58,7 @@ impl Editor {
         }
 
         // Only check buffer mode keybindings if we're not in a higher-priority context
-        // (Help, Menu, Prompt, Popup should take precedence over mode bindings)
+        // (Menu, Prompt, Popup should take precedence over mode bindings)
         let should_check_mode_bindings = matches!(
             context,
             crate::keybindings::KeyContext::Normal | crate::keybindings::KeyContext::FileExplorer
@@ -117,23 +115,6 @@ impl Editor {
 
         // Handle the action
         match action {
-            // Help mode actions
-            Action::HelpToggle => {
-                self.help_renderer.toggle();
-            }
-            Action::HelpScrollUp => {
-                self.help_renderer.scroll(-1, &self.keybindings);
-            }
-            Action::HelpScrollDown => {
-                self.help_renderer.scroll(1, &self.keybindings);
-            }
-            Action::HelpPageUp => {
-                self.help_renderer.scroll(-10, &self.keybindings);
-            }
-            Action::HelpPageDown => {
-                self.help_renderer.scroll(10, &self.keybindings);
-            }
-
             // Prompt mode actions - delegate to handle_action
             Action::PromptConfirm => {
                 return self.handle_action(action);
@@ -476,6 +457,16 @@ impl Editor {
         Ok(())
     }
 
+    fn dispatch_plugin_hook(&mut self, hook_name: &str, args: HookArgs, fallback: &str) {
+        if let Some(ts_manager) = &self.ts_plugin_manager {
+            if ts_manager.has_hook_handlers(hook_name) {
+                ts_manager.run_hook(hook_name, args);
+                return;
+            }
+        }
+        self.set_status_message(fallback.to_string());
+    }
+
     /// Handle an action (for normal mode and command execution)
     pub(super) fn handle_action(&mut self, action: Action) -> std::io::Result<()> {
         use crate::keybindings::Action;
@@ -559,7 +550,21 @@ impl Editor {
                     self.apply_event_to_active_buffer(&event);
                 }
             }
-            Action::ShowHelp => self.help_renderer.toggle(),
+            Action::ShowHelp => {
+                self.dispatch_plugin_hook(
+                    "manual_page",
+                    HookArgs::ManualPage,
+                    "Manual not available (plugins not loaded)",
+                );
+            }
+            Action::ShowKeyboardShortcuts => {
+                let bindings = self.keybindings.get_all_bindings();
+                self.dispatch_plugin_hook(
+                    "keyboard_shortcuts",
+                    HookArgs::KeyboardShortcuts { bindings },
+                    "Keyboard shortcuts not available (plugins not loaded)",
+                );
+            }
             Action::CommandPalette => {
                 // Toggle command palette: close if already open, otherwise open it
                 if let Some(prompt) = &self.prompt {
@@ -1346,7 +1351,6 @@ impl Editor {
                             }
                         }
                         PromptType::Plugin { custom_type } => {
-                            use crate::hooks::HookArgs;
                             let hook_args = HookArgs::PromptConfirmed {
                                 prompt_type: custom_type,
                                 input,

@@ -584,7 +584,6 @@ fn op_fresh_register_command(
                 .filter_map(|s| match s.trim().to_lowercase().as_str() {
                     "global" => Some(crate::keybindings::KeyContext::Global),
                     "normal" => Some(crate::keybindings::KeyContext::Normal),
-                    "help" => Some(crate::keybindings::KeyContext::Help),
                     "prompt" => Some(crate::keybindings::KeyContext::Prompt),
                     "popup" => Some(crate::keybindings::KeyContext::Popup),
                     "fileexplorer" | "file_explorer" => {
@@ -2837,13 +2836,28 @@ impl TypeScriptPluginManager {
                     "selected_index": selected_index,
                 })
             }
-            HookArgs::PromptCancelled { prompt_type, input } => {
-                serde_json::json!({
-                    "prompt_type": prompt_type,
-                    "input": input,
+        HookArgs::PromptCancelled { prompt_type, input } => {
+            serde_json::json!({
+                "prompt_type": prompt_type,
+                "input": input,
+            })
+        }
+        HookArgs::KeyboardShortcuts { bindings } => {
+            let entries: Vec<serde_json::Value> = bindings
+                .iter()
+                .map(|(key, action)| {
+                    serde_json::json!({
+                        "key": key,
+                        "action": action,
+                    })
                 })
-            }
-            HookArgs::LspReferences { symbol, locations } => {
+                .collect();
+            serde_json::json!({ "bindings": entries })
+        }
+        HookArgs::ManualPage => {
+            serde_json::json!({})
+        }
+        HookArgs::LspReferences { symbol, locations } => {
                 let locs: Vec<serde_json::Value> = locations
                     .iter()
                     .map(|loc| {
@@ -3434,16 +3448,13 @@ mod tests {
         let commands: Vec<_> = rx.try_iter().collect();
         match &commands[0] {
             PluginCommand::RegisterCommand { command } => {
-                assert_eq!(command.contexts.len(), 7);
+                assert_eq!(command.contexts.len(), 6);
                 assert!(command
                     .contexts
                     .contains(&crate::keybindings::KeyContext::Global));
                 assert!(command
                     .contexts
                     .contains(&crate::keybindings::KeyContext::Normal));
-                assert!(command
-                    .contexts
-                    .contains(&crate::keybindings::KeyContext::Help));
                 assert!(command
                     .contexts
                     .contains(&crate::keybindings::KeyContext::Prompt));

@@ -373,20 +373,20 @@ mod tests {
         });
 
         registry.register(Command {
-            name: "Help Only".to_string(),
-            description: "Available only in help context".to_string(),
+            name: "Popup Only".to_string(),
+            description: "Available only in popup context".to_string(),
             action: Action::None,
-            contexts: vec![KeyContext::Help],
+            contexts: vec![KeyContext::Popup],
         });
 
-        // In normal context, "Help Only" should be disabled
+        // In normal context, "Popup Only" should be disabled
         let results = registry.filter("", KeyContext::Normal, &keybindings, false);
-        let help_only = results.iter().find(|s| s.text == "Help Only");
-        assert!(help_only.is_some());
-        assert!(help_only.unwrap().disabled);
+        let popup_only = results.iter().find(|s| s.text == "Popup Only");
+        assert!(popup_only.is_some());
+        assert!(popup_only.unwrap().disabled);
 
-        // In help context, "Normal Only" should be disabled
-        let results = registry.filter("", KeyContext::Help, &keybindings, false);
+        // In popup context, "Normal Only" should be disabled
+        let results = registry.filter("", KeyContext::Popup, &keybindings, false);
         let normal_only = results.iter().find(|s| s.text == "Normal Only");
         assert!(normal_only.is_some());
         assert!(normal_only.unwrap().disabled);
