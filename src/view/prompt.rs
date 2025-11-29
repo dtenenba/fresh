@@ -20,8 +20,10 @@ pub enum PromptType {
     Replace { search: String },
     /// Search for text in buffer (for query-replace - will prompt for replacement after)
     QueryReplaceSearch,
-    /// Query replace text in buffer interactively (y/n/!/q)
+    /// Query replace text in buffer - prompt for replacement text
     QueryReplace { search: String },
+    /// Query replace confirmation prompt (y/n/!/q for each match)
+    QueryReplaceConfirm,
     /// Execute a command by name (M-x)
     Command,
     /// Go to a specific line number

@@ -1844,6 +1844,13 @@ impl Editor {
                         PromptType::SelectTheme => {
                             self.apply_theme(input.trim());
                         }
+                        PromptType::QueryReplaceConfirm => {
+                            // This is handled by InsertChar, not PromptConfirm
+                            // But if somehow Enter is pressed, treat it as skip (n)
+                            if let Some(c) = input.chars().next() {
+                                let _ = self.handle_interactive_replace_key(c);
+                            }
+                        }
                     }
                 }
             }
@@ -1957,11 +1964,14 @@ impl Editor {
                 self.hide_popup();
             }
             Action::InsertChar(c) => {
-                // Handle character insertion in interactive replace mode
-                if self.interactive_replace_state.is_some() {
-                    return self.handle_interactive_replace_key(c);
                 // Handle character insertion in prompt mode
-                } else if self.is_prompting() {
+                if self.is_prompting() {
+                    // Check if this is the query-replace confirmation prompt
+                    if let Some(ref prompt) = self.prompt {
+                        if prompt.prompt_type == PromptType::QueryReplaceConfirm {
+                            return self.handle_interactive_replace_key(c);
+                        }
+                    }
                     // Reset history navigation when user starts typing
                     // This allows them to press Up to get back to history items
                     if let Some(ref prompt) = self.prompt {

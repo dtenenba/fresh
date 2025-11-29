@@ -1732,7 +1732,7 @@ impl Editor {
             replacements_made: 0,
         });
 
-        // Move cursor to first match and show prompt
+        // Move cursor to first match
         let state = self.active_state_mut();
         state.cursors.primary_mut().position = first_match_pos;
         state.cursors.primary_mut().anchor = None;
@@ -1740,10 +1740,14 @@ impl Editor {
             .viewport
             .ensure_visible(&mut state.buffer, state.cursors.primary());
 
-        self.set_status_message("Replace? (y/n/!/q)".to_string());
+        // Show the query-replace prompt
+        self.prompt = Some(Prompt::new(
+            "Replace? (y)es (n)o (a)ll (c)ancel: ".to_string(),
+            PromptType::QueryReplaceConfirm,
+        ));
     }
 
-    /// Handle interactive replace key press (y/n/!/q)
+    /// Handle interactive replace key press (y/n/a/c)
     pub(super) fn handle_interactive_replace_key(&mut self, c: char) -> std::io::Result<()> {
         let state = self.interactive_replace_state.clone();
         let Some(mut ir_state) = state else {
@@ -1787,7 +1791,7 @@ impl Editor {
                     self.finish_interactive_replace(ir_state.replacements_made);
                 }
             }
-            '!' => {
+            'a' | 'A' | '!' => {
                 // Replace all remaining matches with SINGLE confirmation
                 // Undo behavior: ONE undo step undoes ALL remaining replacements
                 // Uses streaming search (doesn't materialize file), but collects positions for batch
@@ -1882,15 +1886,12 @@ impl Editor {
 
                 self.finish_interactive_replace(ir_state.replacements_made);
             }
-            'q' | 'Q' | '\x1b' => {
-                // Escape - quit interactive replace
+            'c' | 'C' | 'q' | 'Q' | '\x1b' => {
+                // Cancel/quit interactive replace
                 self.finish_interactive_replace(ir_state.replacements_made);
             }
             _ => {
-                // Unknown key - show help
-                self.set_status_message(
-                    "Replace this occurrence? (y=yes, n=no, !=all, q=quit)".to_string(),
-                );
+                // Unknown key - ignored (prompt shows valid options)
             }
         }
 
@@ -2016,17 +2017,25 @@ impl Editor {
             .viewport
             .ensure_visible(&mut state.buffer, state.cursors.primary());
 
+        // Update the prompt message (show [Wrapped] if we've wrapped around)
         let msg = if ir_state.has_wrapped {
-            "[Wrapped] Replace? (y/n/!/q)".to_string()
+            "[Wrapped] Replace? (y)es (n)o (a)ll (c)ancel: ".to_string()
         } else {
-            "Replace? (y/n/!/q)".to_string()
+            "Replace? (y)es (n)o (a)ll (c)ancel: ".to_string()
         };
-        self.set_status_message(msg);
+        if let Some(ref mut prompt) = self.prompt {
+            if prompt.prompt_type == PromptType::QueryReplaceConfirm {
+                prompt.message = msg;
+                prompt.input.clear();
+                prompt.cursor_pos = 0;
+            }
+        }
     }
 
     /// Finish interactive replace and show summary
     pub(super) fn finish_interactive_replace(&mut self, replacements_made: usize) {
         self.interactive_replace_state = None;
+        self.prompt = None; // Clear the query-replace prompt
 
         // Clear search highlights
         let ns = self.search_namespace.clone();
