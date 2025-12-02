@@ -1,6 +1,134 @@
 use crate::common::harness::EditorTestHarness;
 
-/// Test adding cursor at next match with Ctrl+D
+/// Test that Ctrl+D with backward selection (Shift+Left) creates properly synced cursors
+/// Issue #210: When selecting with Shift+Left and then creating a multiple cursor with Ctrl+D,
+/// the cursors use unsynced offsets - one cursor is at start of selection, one at end.
+/// This causes typing to produce incorrect results.
+#[test]
+fn test_add_cursor_next_match_with_backward_selection() {
+    use crossterm::event::{KeyCode, KeyModifiers};
+    let mut harness = EditorTestHarness::new(80, 24).unwrap();
+
+    // Type some text with repeated words
+    harness.type_text("foo bar foo").unwrap();
+    harness.assert_buffer_content("foo bar foo");
+
+    // Position cursor after first "foo" (at position 3)
+    harness.send_key(KeyCode::Home, KeyModifiers::NONE).unwrap();
+    harness
+        .send_key(KeyCode::Right, KeyModifiers::NONE)
+        .unwrap();
+    harness
+        .send_key(KeyCode::Right, KeyModifiers::NONE)
+        .unwrap();
+    harness
+        .send_key(KeyCode::Right, KeyModifiers::NONE)
+        .unwrap();
+
+    // Verify cursor position
+    let primary = harness.editor().active_state().cursors.primary();
+    assert_eq!(primary.position, 3, "Cursor should be at position 3 after first 'foo'");
+
+    // Select backward with Shift+Left 3 times to select "foo"
+    // This creates a backward selection: cursor at 0, anchor at 3
+    harness
+        .send_key(KeyCode::Left, KeyModifiers::SHIFT)
+        .unwrap();
+    harness
+        .send_key(KeyCode::Left, KeyModifiers::SHIFT)
+        .unwrap();
+    harness
+        .send_key(KeyCode::Left, KeyModifiers::SHIFT)
+        .unwrap();
+
+    // Verify backward selection: position=0 (cursor at start), anchor=3 (selection end)
+    let primary = harness.editor().active_state().cursors.primary();
+    assert_eq!(primary.position, 0, "After Shift+Left, cursor should be at start of selection");
+    assert_eq!(primary.anchor, Some(3), "After Shift+Left, anchor should be at end of selection");
+
+    // Add cursor at next "foo" match
+    harness.editor_mut().add_cursor_at_next_match();
+    harness.render().unwrap();
+
+    // Should now have 2 cursors
+    let state = harness.editor().active_state();
+    assert_eq!(state.cursors.iter().count(), 2);
+
+    // CRITICAL: Both cursors should have the same relative position within their selections
+    // The original cursor is at position 0 (start of selection 0..3)
+    // The new cursor should also be at the start of its selection (8..11)
+    // i.e., new cursor position should be 8, not 11
+    for (id, cursor) in state.cursors.iter() {
+        let selection = cursor.selection_range().expect("Cursor should have selection");
+        let is_at_start = cursor.position == selection.start;
+        let is_at_end = cursor.position == selection.end;
+
+        // Since original selection was backward (cursor at start), new cursor should also be at start
+        assert!(
+            is_at_start,
+            "Cursor {:?} should be at start of selection. Position: {}, Selection: {:?}",
+            id, cursor.position, selection
+        );
+        assert!(
+            !is_at_end || selection.start == selection.end,
+            "Cursor {:?} should NOT be at end of selection (unless collapsed). Position: {}, Selection: {:?}",
+            id, cursor.position, selection
+        );
+    }
+
+    // Type "X" to replace both selections - this should result in "X bar X"
+    harness.type_text("X").unwrap();
+    harness.render().unwrap();
+
+    // Both "foo"s should be replaced with "X"
+    harness.assert_buffer_content("X bar X");
+}
+
+/// Test that Ctrl+D with forward selection (Shift+Right) creates properly synced cursors
+/// and typing replaces both selections correctly
+#[test]
+fn test_add_cursor_next_match_with_forward_selection() {
+    use crossterm::event::{KeyCode, KeyModifiers};
+    let mut harness = EditorTestHarness::new(80, 24).unwrap();
+
+    // Type some text with repeated words
+    harness.type_text("foo bar foo").unwrap();
+    harness.assert_buffer_content("foo bar foo");
+
+    // Select the first "foo" with forward selection (Shift+Right from position 0)
+    harness.send_key(KeyCode::Home, KeyModifiers::NONE).unwrap();
+    harness
+        .send_key(KeyCode::Right, KeyModifiers::SHIFT)
+        .unwrap();
+    harness
+        .send_key(KeyCode::Right, KeyModifiers::SHIFT)
+        .unwrap();
+    harness
+        .send_key(KeyCode::Right, KeyModifiers::SHIFT)
+        .unwrap();
+
+    // Verify forward selection: position=3 (cursor at end), anchor=0 (selection start)
+    let primary = harness.editor().active_state().cursors.primary();
+    assert_eq!(primary.position, 3, "After Shift+Right, cursor should be at end of selection");
+    assert_eq!(primary.anchor, Some(0), "After Shift+Right, anchor should be at start of selection");
+
+    // Add cursor at next "foo" match
+    harness.editor_mut().add_cursor_at_next_match();
+    harness.render().unwrap();
+
+    // Should now have 2 cursors
+    let state = harness.editor().active_state();
+    assert_eq!(state.cursors.iter().count(), 2);
+
+    // Type "X" to replace both selections - this should result in "X bar X"
+    harness.type_text("X").unwrap();
+    harness.render().unwrap();
+
+    // Both "foo"s should be replaced with "X"
+    harness.assert_buffer_content("X bar X");
+}
+
+/// Test adding cursor at next match with Ctrl+D (no typing, just cursor creation)
 #[test]
 fn test_add_cursor_next_match() {
     use crossterm::event::{KeyCode, KeyModifiers};

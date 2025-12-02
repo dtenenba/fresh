@@ -204,11 +204,15 @@ pub fn action_to_events(
     match action {
         // Character input - insert at each cursor
         Action::InsertChar(ch) => {
-            // Collect cursors and sort by position (reverse order)
+            // Collect cursors and sort by the effective insert position (reverse order)
+            // The insert position is selection.start (for selections) or cursor.position
             // This ensures insertions at later positions happen first,
             // avoiding position shifts that would affect earlier insertions
             let mut cursor_vec: Vec<_> = state.cursors.iter().collect();
-            cursor_vec.sort_by_key(|(_, c)| std::cmp::Reverse(c.position));
+            cursor_vec.sort_by_key(|(_, c)| {
+                let insert_pos = c.selection_range().map(|r| r.start).unwrap_or(c.position);
+                std::cmp::Reverse(insert_pos)
+            });
 
             // Check if this is a closing delimiter that should trigger auto-dedent
             let is_closing_delimiter = matches!(ch, '}' | ')' | ']');
@@ -228,23 +232,26 @@ pub fn action_to_events(
                 None
             };
 
-            // First collect all deletions (for selections)
-            let deletions: Vec<_> = cursor_vec
+            // First, collect just the cursor IDs and positions (without borrowing state)
+            let cursor_info: Vec<_> = cursor_vec
                 .iter()
-                .filter_map(|(cursor_id, cursor)| {
-                    cursor.selection_range().map(|range| (*cursor_id, range))
+                .map(|(cursor_id, cursor)| {
+                    let selection = cursor.selection_range();
+                    let insert_position = selection
+                        .as_ref()
+                        .map(|r| r.start)
+                        .unwrap_or(cursor.position);
+                    (*cursor_id, selection, insert_position)
                 })
                 .collect();
 
-            // Collect insertion data (to avoid borrowing during loop)
-            let insertion_data: Vec<_> = cursor_vec
-                .iter()
-                .map(|(cursor_id, cursor)| {
-                    let insert_position = cursor
-                        .selection_range()
-                        .map(|r| r.start)
-                        .unwrap_or(cursor.position);
+            // Now drop the borrow on cursors and collect the rest of the data
+            drop(cursor_vec);
 
+            // Collect all cursor data with buffer access
+            let cursor_data: Vec<_> = cursor_info
+                .into_iter()
+                .map(|(cursor_id, selection, insert_position)| {
                     // Calculate line start for auto-dedent
                     let mut line_start = insert_position;
                     while line_start > 0 {
@@ -259,32 +266,50 @@ pub fn action_to_events(
                     let only_spaces = line_before_cursor.iter().all(|&b| b == b' ' || b == b'\t');
 
                     // Check character after cursor for smart quote insertion
-                    let char_after = if insert_position < state.buffer.len() {
+                    // For selections, check char after the selection end
+                    let check_pos = selection.as_ref().map(|r| r.end).unwrap_or(insert_position);
+                    let char_after = if check_pos < state.buffer.len() {
                         state
                             .buffer
-                            .slice_bytes(insert_position..insert_position + 1)
+                            .slice_bytes(check_pos..check_pos + 1)
                             .first()
                             .copied()
                     } else {
                         None
                     };
 
+                    // Get deleted text for selection (if any)
+                    let deleted_text = selection
+                        .as_ref()
+                        .map(|r| state.get_text_range(r.start, r.end));
+
                     (
-                        *cursor_id,
+                        cursor_id,
+                        selection,
                         insert_position,
                         line_start,
                         only_spaces,
                         char_after,
+                        deleted_text,
                     )
                 })
                 .collect();
 
-            // Get text for deletions
-            apply_deletions(state, deletions, &mut events);
-
-            // Now process insertions
-            for (cursor_id, insert_position, line_start, only_spaces, char_after) in insertion_data
+            // Process each cursor: delete selection (if any), then insert
+            // By processing in reverse position order, later positions are handled first
+            // so they don't affect earlier positions
+            for (cursor_id, selection, insert_position, line_start, only_spaces, char_after, deleted_text) in cursor_data
             {
+                // First, delete the selection if there is one
+                if let (Some(range), Some(text)) = (selection, deleted_text) {
+                    events.push(Event::Delete {
+                        range,
+                        deleted_text: text,
+                        cursor_id,
+                    });
+                }
+
+                // Then handle insertion
                 // Skip-over logic for closing brackets/quotes
                 // When the user types a closing bracket and the cursor is right before that bracket,
                 // just move the cursor forward instead of inserting a duplicate

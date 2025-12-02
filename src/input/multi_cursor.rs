@@ -73,6 +73,10 @@ pub fn add_cursor_at_next_match(state: &mut EditorState) -> AddCursorResult {
         }
     };
 
+    // Determine if the original selection is "backward" (cursor at start of selection)
+    // This happens when user selects with Shift+Left
+    let cursor_at_start = primary.position == selection_range.start;
+
     // Extract the selected text
     let pattern = state.get_text_range(selection_range.start, selection_range.end);
 
@@ -88,7 +92,20 @@ pub fn add_cursor_at_next_match(state: &mut EditorState) -> AddCursorResult {
     };
 
     // Create a new cursor at the match position with selection
-    let new_cursor = Cursor::with_selection(match_pos, match_pos + pattern.len());
+    // Preserve the selection direction from the original cursor
+    let match_start = match_pos;
+    let match_end = match_pos + pattern.len();
+    let new_cursor = if cursor_at_start {
+        // Original cursor was at start of selection (backward selection)
+        // New cursor should also be at start: position=start, anchor=end
+        let mut cursor = Cursor::new(match_start);
+        cursor.set_anchor(match_end);
+        cursor
+    } else {
+        // Original cursor was at end of selection (forward selection)
+        // New cursor should also be at end: position=end, anchor=start
+        Cursor::with_selection(match_start, match_end)
+    };
     success_result(new_cursor, state)
 }
 
